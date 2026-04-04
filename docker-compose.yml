@@ -1,0 +1,53 @@
+services:
+  api:
+    build:
+      context: ./apps/api
+    container_name: lms-parser-api
+    environment:
+      API_PORT: ${API_PORT:-4000}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      APP_SECRET: ${APP_SECRET:-change-me}
+      EXPORT_DIR: ${EXPORT_DIR:-/app/exports}
+    ports:
+      - "${API_PORT:-4000}:4000"
+    depends_on:
+      redis:
+        condition: service_started
+    volumes:
+      - exports_data:/app/exports
+
+  worker:
+    build:
+      context: ./apps/worker
+    container_name: lms-parser-worker
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      EXPORT_DIR: ${EXPORT_DIR:-/app/exports}
+    depends_on:
+      redis:
+        condition: service_started
+    volumes:
+      - exports_data:/app/exports
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000}
+    container_name: lms-parser-web
+    environment:
+      WEB_PORT: ${WEB_PORT:-3000}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_started
+
+  redis:
+    image: redis:7-alpine
+    container_name: lms-parser-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  exports_data:
