@@ -5,6 +5,8 @@ export type AssignmentStatus =
   | "draft"
   | "overdue";
 
+export type TaskType = "assignment" | "quiz";
+
 export interface CourseSummary {
   id: number;
   shortName: string;
@@ -13,8 +15,9 @@ export interface CourseSummary {
   pointsMax: number;
 }
 
-export interface AssignmentItem {
+export interface LearningItem {
   id: number;
+  itemType: TaskType;
   courseId: number;
   courseName: string;
   name: string;
@@ -26,6 +29,8 @@ export interface AssignmentItem {
   url: string;
 }
 
+export type AssignmentItem = LearningItem;
+
 export interface DashboardSummary {
   total: number;
   done: number;
@@ -36,7 +41,14 @@ export interface DashboardSummary {
 
 export interface DashboardPayload {
   courses: CourseSummary[];
-  assignments: AssignmentItem[];
+  items: LearningItem[];
+  assignments: LearningItem[];
+  summary: DashboardSummary;
+}
+
+export interface CourseFeedPayload {
+  course: CourseSummary;
+  items: LearningItem[];
   summary: DashboardSummary;
 }
 

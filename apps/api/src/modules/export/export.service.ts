@@ -1,6 +1,9 @@
 import path from "path";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
+import * as cheerio from "cheerio";
+import mammoth from "mammoth";
+import pdfParse from "pdf-parse";
 import { config } from "../../config.js";
 import { sessionStore } from "../../store/session-store.js";
 import { decryptString } from "../../utils/crypto.js";
@@ -20,6 +23,104 @@ const redis = new Redis(config.redisUrl, {
 });
 
 const exportQueue = new Queue("pdf-export", { connection: redis });
+
+function htmlToText(raw: string): string {
+  const $ = cheerio.load(raw);
+  const text = $.text().replace(/\s+/g, " ").trim();
+  return text;
+}
+
+function clipText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength)}...`;
+}
+
+async function extractModuleText(module: {
+  modname: string;
+  description?: string;
+  contents?: Array<{
+    content?: string;
+    fileurl?: string;
+    mimetype?: string;
+    filename?: string;
+  }>;
+}, client: MoodleWsClient): Promise<string> {
+  const chunks: string[] = [];
+
+  if (module.description) {
+    const descriptionText = htmlToText(module.description);
+    if (descriptionText) {
+      chunks.push(descriptionText);
+    }
+  }
+
+  for (const content of module.contents ?? []) {
+    if (content.content) {
+      const parsedContent = htmlToText(content.content);
+      if (parsedContent) {
+        chunks.push(parsedContent);
+      }
+    }
+
+    if (content.fileurl) {
+      const normalizedMime = content.mimetype?.toLowerCase() ?? "";
+      const normalizedFileName = content.filename?.toLowerCase() ?? "";
+
+      const isPdf = normalizedMime === "application/pdf" || normalizedFileName.endsWith(".pdf");
+      const isDocx =
+        normalizedMime ===
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        normalizedFileName.endsWith(".docx");
+
+      if (isPdf) {
+        const pdfBuffer = await client.downloadFileBuffer(content.fileurl).catch(() => null);
+        if (pdfBuffer) {
+          const parsed = await pdfParse(pdfBuffer).catch(() => null);
+          const pdfText = parsed?.text?.trim();
+          if (pdfText) {
+            chunks.push(pdfText);
+          }
+        }
+      } else if (isDocx) {
+        const docxBuffer = await client.downloadFileBuffer(content.fileurl).catch(() => null);
+        if (docxBuffer) {
+          const parsed = await mammoth.extractRawText({ buffer: docxBuffer }).catch(() => null);
+          const docxText = parsed?.value?.trim();
+          if (docxText) {
+            chunks.push(docxText);
+          }
+        }
+      } else {
+        const fileText = await client.downloadTextFromFile(content.fileurl, content.mimetype).catch(() => null);
+        if (fileText) {
+          chunks.push(fileText);
+        }
+      }
+    }
+  }
+
+  const merged = chunks
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .join("\n\n");
+
+  if (!merged) {
+    return "Текстовое содержимое недоступно для этого материала (возможно бинарный формат или ограниченный доступ).";
+  }
+
+  return clipText(merged, 24000);
+}
+
+function extractSectionSummaryText(summary?: string): string | null {
+  if (!summary) {
+    return null;
+  }
+
+  const text = htmlToText(summary);
+  return text || null;
+}
 
 export async function createExportJob(payload: ExportJobPayload): Promise<string> {
   const session = sessionStore.get(payload.sessionId);
@@ -49,6 +150,7 @@ export async function createExportJob(payload: ExportJobPayload): Promise<string
     moduleName: string;
     moduleType: string;
     url: string | null;
+    textContent: string;
   }> = [];
 
   for (const courseId of selectedCourseIds) {
@@ -60,10 +162,25 @@ export async function createExportJob(payload: ExportJobPayload): Promise<string
         continue;
       }
 
+      const sectionSummary = extractSectionSummaryText(section.summary);
+      if (sectionSummary) {
+        resources.push({
+          courseId,
+          courseName,
+          sectionNumber: section.section,
+          moduleName: section.name || `Section ${section.section}`,
+          moduleType: "section-summary",
+          url: null,
+          textContent: clipText(sectionSummary, 24000)
+        });
+      }
+
       for (const module of section.modules ?? []) {
-        if (module.modname !== "resource" && module.modname !== "page") {
+        if (!["resource", "page", "label", "book", "folder", "url"].includes(module.modname)) {
           continue;
         }
+
+        const textContent = await extractModuleText(module, client);
 
         resources.push({
           courseId,
@@ -71,7 +188,8 @@ export async function createExportJob(payload: ExportJobPayload): Promise<string
           sectionNumber: section.section,
           moduleName: module.name,
           moduleType: module.modname,
-          url: module.url ?? null
+          url: module.url ?? null,
+          textContent
         });
       }
     }

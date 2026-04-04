@@ -5,7 +5,7 @@ import { z } from "zod";
 import { config } from "./config.js";
 import { sessionStore } from "./store/session-store.js";
 import { connectToMoodle } from "./modules/moodle/auth.js";
-import { buildDashboard } from "./modules/assignments/assignments.service.js";
+import { buildCourseFeed, buildDashboard } from "./modules/assignments/assignments.service.js";
 import { getCoursesWithPoints } from "./modules/grades/grades.service.js";
 import { createExportJob, getExportJobStatus } from "./modules/export/export.service.js";
 
@@ -23,6 +23,10 @@ const connectSchema = z.object({
 
 const sessionIdQuerySchema = z.object({
   sessionId: z.string().uuid()
+});
+
+const courseParamSchema = z.object({
+  courseId: z.coerce.number().int().positive()
 });
 
 const createExportSchema = z
@@ -98,6 +102,18 @@ app.get("/api/courses", async (req, res) => {
     res.json({ courses });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load courses.";
+    res.status(400).json({ error: message });
+  }
+});
+
+app.get("/api/courses/:courseId/items", async (req, res) => {
+  try {
+    const { sessionId } = sessionIdQuerySchema.parse(req.query);
+    const { courseId } = courseParamSchema.parse(req.params);
+    const feed = await buildCourseFeed(sessionId, courseId);
+    res.json(feed);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load course items.";
     res.status(400).json({ error: message });
   }
 });

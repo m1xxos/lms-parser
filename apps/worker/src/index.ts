@@ -12,6 +12,24 @@ const exportDir = process.env.EXPORT_DIR ?? "/app/exports";
 
 fs.mkdirSync(exportDir, { recursive: true });
 
+function pickPdfFontPath(): string | null {
+  const candidates = [
+    process.env.PDF_FONT_PATH,
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+  ].filter((item): item is string => Boolean(item));
+
+  for (const fontPath of candidates) {
+    if (fs.existsSync(fontPath)) {
+      return fontPath;
+    }
+  }
+
+  return null;
+}
+
+const pdfFontPath = pickPdfFontPath();
+
 interface ExportResource {
   courseId: number;
   courseName: string;
@@ -19,6 +37,7 @@ interface ExportResource {
   moduleName: string;
   moduleType: string;
   url: string | null;
+  textContent: string;
 }
 
 interface ExportPayload {
@@ -51,6 +70,10 @@ async function renderPdf(filePath: string, payload: ExportPayload): Promise<void
 
     doc.pipe(stream);
 
+    if (pdfFontPath) {
+      doc.font(pdfFontPath);
+    }
+
     doc.fontSize(22).text("Moodle Course Materials Export");
     doc.moveDown(0.5);
     doc.fontSize(12).fillColor("#555").text(`Requested at: ${payload.requestedAt}`);
@@ -76,10 +99,22 @@ async function renderPdf(filePath: string, payload: ExportPayload): Promise<void
 
       for (const resource of sorted) {
         doc.fontSize(11).text(`Section ${resource.sectionNumber} · [${resource.moduleType}] ${resource.moduleName}`);
+        doc.moveDown(0.2);
+        doc.fontSize(10).fillColor("#1b2a2f").text(resource.textContent || "Текст материала недоступен.", {
+          align: "left"
+        });
+        doc.fillColor("#111");
+
         if (resource.url) {
-          doc.fillColor("#1f6feb").text(resource.url, { link: resource.url, underline: true });
+          doc.moveDown(0.2);
+          doc.fillColor("#1f6feb").fontSize(9).text(`Источник: ${resource.url}`, {
+            link: resource.url,
+            underline: true
+          });
           doc.fillColor("#111");
         }
+
+        doc.moveDown(0.8);
       }
 
       doc.moveDown();

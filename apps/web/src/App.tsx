@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type TabKey = "dashboard" | "courses" | "export";
+type TaskType = "assignment" | "quiz";
 type AssignmentStatus = "not_submitted" | "submitted_ungraded" | "submitted_graded" | "draft" | "overdue";
 
 interface ConnectResponse {
@@ -18,8 +19,9 @@ interface CourseSummary {
   pointsMax: number;
 }
 
-interface AssignmentItem {
+interface LearningItem {
   id: number;
+  itemType: TaskType;
   courseId: number;
   courseName: string;
   name: string;
@@ -41,7 +43,14 @@ interface DashboardSummary {
 
 interface DashboardResponse {
   courses: CourseSummary[];
-  assignments: AssignmentItem[];
+  items?: LearningItem[];
+  assignments?: LearningItem[];
+  summary: DashboardSummary;
+}
+
+interface CourseFeedResponse {
+  course: CourseSummary;
+  items: LearningItem[];
   summary: DashboardSummary;
 }
 
@@ -65,6 +74,11 @@ const STATUS_LABELS: Record<AssignmentStatus, string> = {
   submitted_graded: "Сдано и проверено",
   draft: "Черновик",
   overdue: "Просрочено"
+};
+
+const TASK_TYPE_LABELS: Record<TaskType, string> = {
+  assignment: "Задание",
+  quiz: "Тест"
 };
 
 function formatDate(value: string | null): string {
@@ -96,6 +110,10 @@ function statusClass(status: AssignmentStatus): string {
   return "chip chip-default";
 }
 
+function taskTypeClass(itemType: TaskType): string {
+  return itemType === "quiz" ? "chip chip-info" : "chip chip-muted";
+}
+
 export default function App(): JSX.Element {
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [connectForm, setConnectForm] = useState({ baseUrl: "https://sdo.sut.ru", username: "", password: "" });
@@ -107,15 +125,36 @@ export default function App(): JSX.Element {
 
   const [exportScope, setExportScope] = useState<"all" | "course" | "section">("all");
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+  const [courseItems, setCourseItems] = useState<LearningItem[]>([]);
+  const [courseSummary, setCourseSummary] = useState<DashboardSummary | null>(null);
+  const [courseLoading, setCourseLoading] = useState(false);
   const [sectionNumber, setSectionNumber] = useState<number>(0);
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null);
 
   const progress = dashboard?.summary.progressPercent ?? 0;
+  const dashboardItems = useMemo(() => dashboard?.items ?? dashboard?.assignments ?? [], [dashboard]);
 
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId) ?? null,
     [courses, selectedCourseId]
   );
+
+  const loadCourseItems = async (sessionId: string, courseId: number): Promise<void> => {
+    setCourseLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/courses/${courseId}/items?sessionId=${sessionId}`);
+      const payload = (await response.json()) as CourseFeedResponse & { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Не удалось загрузить курс.");
+      }
+
+      setCourseItems(payload.items);
+      setCourseSummary(payload.summary);
+    } finally {
+      setCourseLoading(false);
+    }
+  };
 
   const refreshData = async (sessionId: string): Promise<void> => {
     const [dashboardResp, coursesResp] = await Promise.all([
@@ -139,8 +178,10 @@ export default function App(): JSX.Element {
     setDashboard(dashboardPayload);
     setCourses(coursesPayload.courses);
 
-    if (!selectedCourseId && coursesPayload.courses.length > 0) {
-      setSelectedCourseId(coursesPayload.courses[0].id);
+    const nextCourseId = selectedCourseId ?? coursesPayload.courses[0]?.id ?? null;
+    if (nextCourseId) {
+      setSelectedCourseId(nextCourseId);
+      await loadCourseItems(sessionId, nextCourseId);
     }
   };
 
@@ -338,7 +379,7 @@ export default function App(): JSX.Element {
                     <p className="kpi-value">{progress}%</p>
                   </div>
                   <div>
-                    <p className="kpi-label">Всего заданий</p>
+                    <p className="kpi-label">Всего задач и тестов</p>
                     <p className="kpi-value">{dashboard.summary.total}</p>
                   </div>
                   <div>
@@ -356,14 +397,17 @@ export default function App(): JSX.Element {
                 </div>
 
                 <div className="assignment-list">
-                  {dashboard.assignments.map((item) => (
-                    <article key={item.id} className="assignment-card">
+                  {dashboardItems.map((item) => (
+                    <article key={`${item.itemType}-${item.id}`} className="assignment-card">
                       <div className="assignment-head">
                         <div>
                           <p className="course-name">{item.courseName}</p>
                           <h3>{item.name}</h3>
                         </div>
-                        <span className={statusClass(item.status)}>{STATUS_LABELS[item.status]}</span>
+                        <div className="chips-inline">
+                          <span className={taskTypeClass(item.itemType)}>{TASK_TYPE_LABELS[item.itemType]}</span>
+                          <span className={statusClass(item.status)}>{STATUS_LABELS[item.status]}</span>
+                        </div>
                       </div>
 
                       <div className="assignment-meta">
@@ -375,9 +419,29 @@ export default function App(): JSX.Element {
                         </span>
                       </div>
 
-                      <a href={item.url} target="_blank" rel="noreferrer" className="link-btn">
-                        Открыть задание в Moodle
-                      </a>
+                      <div className="action-row">
+                        <a href={item.url} target="_blank" rel="noreferrer" className="link-btn">
+                          Открыть в Moodle
+                        </a>
+                        <button
+                          type="button"
+                          className="ghost-btn"
+                          onClick={() => {
+                            if (!session) {
+                              return;
+                            }
+                            setTab("courses");
+                            setSelectedCourseId(item.courseId);
+                            loadCourseItems(session.sessionId, item.courseId).catch((courseError) => {
+                              const message =
+                                courseError instanceof Error ? courseError.message : "Не удалось открыть курс.";
+                              setError(message);
+                            });
+                          }}
+                        >
+                          Перейти в курс
+                        </button>
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -385,19 +449,91 @@ export default function App(): JSX.Element {
             )}
 
             {tab === "courses" && (
-              <section className="panel course-grid">
-                {courses.map((course) => {
-                  const percent = course.pointsMax > 0 ? Math.round((course.pointsEarned / course.pointsMax) * 100) : 0;
-                  return (
-                    <article key={course.id} className="course-card">
-                      <p className="course-short">{course.shortName}</p>
-                      <h3>{course.fullName}</h3>
-                      <p>
-                        {course.pointsEarned} / {course.pointsMax} баллов ({percent}%)
-                      </p>
-                    </article>
-                  );
-                })}
+              <section className="panel">
+                <div className="course-grid">
+                  {courses.map((course) => {
+                    const percent = course.pointsMax > 0 ? Math.round((course.pointsEarned / course.pointsMax) * 100) : 0;
+                    return (
+                      <article key={course.id} className="course-card">
+                        <p className="course-short">{course.shortName}</p>
+                        <h3>{course.fullName}</h3>
+                        <p>
+                          {course.pointsEarned} / {course.pointsMax} баллов ({percent}%)
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!session) {
+                              return;
+                            }
+                            setSelectedCourseId(course.id);
+                            loadCourseItems(session.sessionId, course.id).catch((courseError) => {
+                              const message =
+                                courseError instanceof Error ? courseError.message : "Не удалось открыть курс.";
+                              setError(message);
+                            });
+                          }}
+                        >
+                          Открыть задания и тесты
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                {selectedCourse && (
+                  <div className="course-detail">
+                    <div className="course-detail-head">
+                      <div>
+                        <p className="course-short">{selectedCourse.shortName}</p>
+                        <h3>{selectedCourse.fullName}</h3>
+                      </div>
+                      {courseSummary && (
+                        <div className="course-detail-summary">
+                          <span>Задач: {courseSummary.total}</span>
+                          <span>Сдано: {courseSummary.done}</span>
+                          <span>Не проверено: {courseSummary.submittedNotGraded}</span>
+                          <span>Прогресс: {courseSummary.progressPercent}%</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {courseLoading && <p className="course-empty">Загрузка курса...</p>}
+
+                    {!courseLoading && courseItems.length === 0 && (
+                      <p className="course-empty">В этом курсе пока нет заданий и тестов.</p>
+                    )}
+
+                    {!courseLoading && courseItems.length > 0 && (
+                      <div className="assignment-list">
+                        {courseItems.map((item) => (
+                          <article key={`${item.itemType}-${item.id}`} className="assignment-card">
+                            <div className="assignment-head">
+                              <h3>{item.name}</h3>
+                              <div className="chips-inline">
+                                <span className={taskTypeClass(item.itemType)}>{TASK_TYPE_LABELS[item.itemType]}</span>
+                                <span className={statusClass(item.status)}>{STATUS_LABELS[item.status]}</span>
+                              </div>
+                            </div>
+
+                            <div className="assignment-meta">
+                              <span>Дедлайн: {formatDate(item.dueAt)}</span>
+                              <span>Сдано: {formatDate(item.submittedAt)}</span>
+                              <span>
+                                Балл: {item.grade !== null ? item.grade : "-"}
+                                {item.maxGrade !== null ? ` / ${item.maxGrade}` : ""}
+                              </span>
+                            </div>
+
+                            <a href={item.url} target="_blank" rel="noreferrer" className="link-btn">
+                              Открыть в Moodle
+                            </a>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </section>
             )}
 
@@ -466,7 +602,7 @@ export default function App(): JSX.Element {
                 </button>
 
                 <div className="export-note">
-                  <p>MVP экспортирует материалы типов: file resource и page.</p>
+                  <p>PDF включает текстовые материалы курса (resource/page/label/book, если текст доступен).</p>
                   <p>Выбранный курс: {selectedCourse ? selectedCourse.fullName : "-"}</p>
                 </div>
 

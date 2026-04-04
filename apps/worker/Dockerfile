@@ -11,6 +11,8 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
+RUN apk add --no-cache ttf-dejavu
+
 ENV REDIS_URL=redis://redis:6379
 ENV EXPORT_DIR=/app/exports
 

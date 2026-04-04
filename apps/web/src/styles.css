@@ -284,6 +284,17 @@ button:disabled {
   color: var(--success);
 }
 
+.chip-info {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.chips-inline {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
 .link-btn {
   display: inline-flex;
   padding: 0.45rem 0.7rem;
@@ -293,6 +304,18 @@ button:disabled {
   border: 1px solid #bed9e8;
   background: #f1f9ff;
   font-size: 0.84rem;
+}
+
+.action-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ghost-btn {
+  background: #eef5f7;
+  color: #163641;
+  border: 1px solid #c8dde4;
 }
 
 .course-grid {
@@ -316,6 +339,38 @@ button:disabled {
   margin: 0;
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+.course-detail {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--line);
+}
+
+.course-detail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.8rem;
+}
+
+.course-detail-summary {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.course-detail-summary span {
+  padding: 0.3rem 0.55rem;
+  background: #edf5f2;
+  border-radius: 999px;
+  font-size: 0.78rem;
+}
+
+.course-empty {
+  color: var(--muted);
+  margin: 0.6rem 0;
 }
 
 .export-grid {
@@ -393,6 +448,10 @@ button:disabled {
   .tabs {
     overflow-x: auto;
     padding-bottom: 0.2rem;
+  }
+
+  .course-detail-head {
+    flex-direction: column;
   }
 
   .session-meta button {
