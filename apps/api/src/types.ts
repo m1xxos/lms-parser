@@ -39,11 +39,25 @@ export interface DashboardSummary {
   progressPercent: number;
 }
 
+export interface WeeklyProgressDay {
+  date: string;
+  submittedCount: number;
+}
+
+export interface WeeklyStreak {
+  scopeDays: number;
+  currentStreak: number;
+  bestStreak: number;
+  totalSubmitted: number;
+  byDay: WeeklyProgressDay[];
+}
+
 export interface DashboardPayload {
   courses: CourseSummary[];
   items: LearningItem[];
   assignments: LearningItem[];
   summary: DashboardSummary;
+  weeklyStreak: WeeklyStreak;
 }
 
 export interface CourseFeedPayload {

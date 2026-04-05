@@ -41,11 +41,25 @@ interface DashboardSummary {
   progressPercent: number;
 }
 
+interface WeeklyProgressDay {
+  date: string;
+  submittedCount: number;
+}
+
+interface WeeklyStreak {
+  scopeDays: number;
+  currentStreak: number;
+  bestStreak: number;
+  totalSubmitted: number;
+  byDay: WeeklyProgressDay[];
+}
+
 interface DashboardResponse {
   courses: CourseSummary[];
   items?: LearningItem[];
   assignments?: LearningItem[];
   summary: DashboardSummary;
+  weeklyStreak?: WeeklyStreak;
 }
 
 interface CourseFeedResponse {
@@ -114,6 +128,88 @@ function taskTypeClass(itemType: TaskType): string {
   return itemType === "quiz" ? "chip chip-info" : "chip chip-muted";
 }
 
+function dayKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDayKey(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, (month ?? 1) - 1, day ?? 1);
+}
+
+function formatWeekday(day: string): string {
+  return parseDayKey(day).toLocaleDateString("ru-RU", { weekday: "short" });
+}
+
+function fallbackWeeklyStreak(items: LearningItem[], scopeDays = 7): WeeklyStreak {
+  const today = new Date();
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const start = new Date(end);
+  start.setDate(end.getDate() - (scopeDays - 1));
+
+  const byDay: WeeklyProgressDay[] = [];
+  for (let i = 0; i < scopeDays; i += 1) {
+    const cursor = new Date(start);
+    cursor.setDate(start.getDate() + i);
+    byDay.push({ date: dayKey(cursor), submittedCount: 0 });
+  }
+
+  const indexByDate = new Map(byDay.map((day, index) => [day.date, index]));
+  for (const item of items) {
+    if (!item.submittedAt) {
+      continue;
+    }
+
+    const submitted = new Date(item.submittedAt);
+    if (Number.isNaN(submitted.getTime())) {
+      continue;
+    }
+
+    const normalized = new Date(submitted.getFullYear(), submitted.getMonth(), submitted.getDate());
+    if (normalized < start || normalized > end) {
+      continue;
+    }
+
+    const index = indexByDate.get(dayKey(normalized));
+    if (typeof index === "number") {
+      byDay[index].submittedCount += 1;
+    }
+  }
+
+  let currentStreak = 0;
+  for (let i = byDay.length - 1; i >= 0; i -= 1) {
+    if (byDay[i].submittedCount > 0) {
+      currentStreak += 1;
+    } else {
+      break;
+    }
+  }
+
+  let bestStreak = 0;
+  let running = 0;
+  for (const day of byDay) {
+    if (day.submittedCount > 0) {
+      running += 1;
+      bestStreak = Math.max(bestStreak, running);
+    } else {
+      running = 0;
+    }
+  }
+
+  const totalSubmitted = byDay.reduce((sum, day) => sum + day.submittedCount, 0);
+
+  return {
+    scopeDays,
+    currentStreak,
+    bestStreak,
+    totalSubmitted,
+    byDay
+  };
+}
+
 export default function App(): JSX.Element {
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [connectForm, setConnectForm] = useState({ baseUrl: "https://sdo.sut.ru", username: "", password: "" });
@@ -133,6 +229,10 @@ export default function App(): JSX.Element {
 
   const progress = dashboard?.summary.progressPercent ?? 0;
   const dashboardItems = useMemo(() => dashboard?.items ?? dashboard?.assignments ?? [], [dashboard]);
+  const weeklyStreak = useMemo(
+    () => dashboard?.weeklyStreak ?? fallbackWeeklyStreak(dashboardItems),
+    [dashboard?.weeklyStreak, dashboardItems]
+  );
 
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId) ?? null,
@@ -394,6 +494,28 @@ export default function App(): JSX.Element {
 
                 <div className="progress-track">
                   <div className="progress-fill" style={{ width: `${progress}%` }} />
+                </div>
+
+                <div className="streak-panel">
+                  <div className="streak-head">
+                    <div>
+                      <p className="kpi-label">Стрик активности (неделя)</p>
+                      <p className="kpi-value">{weeklyStreak.currentStreak} дн.</p>
+                    </div>
+                    <div className="streak-metrics">
+                      <span>Сдано за 7 дней: {weeklyStreak.totalSubmitted}</span>
+                      <span>Лучший стрик: {weeklyStreak.bestStreak} дн.</span>
+                    </div>
+                  </div>
+
+                  <div className="streak-week-grid">
+                    {weeklyStreak.byDay.map((day) => (
+                      <div key={day.date} className="streak-day-cell">
+                        <span>{formatWeekday(day.date)}</span>
+                        <strong>{day.submittedCount}</strong>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="assignment-list">

@@ -1,4 +1,4 @@
-import { CourseFeedPayload, DashboardPayload, DashboardSummary, LearningItem } from "../../types.js";
+import { CourseFeedPayload, DashboardPayload, DashboardSummary, LearningItem, WeeklyStreak } from "../../types.js";
 import { sessionStore } from "../../store/session-store.js";
 import { decryptString } from "../../utils/crypto.js";
 import { normalizeAssignmentStatus, parseSubmissionGrade } from "../moodle/normalizer.js";
@@ -31,6 +31,88 @@ function buildSummary(items: LearningItem[]): DashboardSummary {
     submittedNotGraded,
     overdue,
     progressPercent: total === 0 ? 0 : Math.round((done / total) * 100)
+  };
+}
+
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function formatDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildWeeklyStreak(items: LearningItem[], scopeDays = 7): WeeklyStreak {
+  const today = startOfDay(new Date());
+  const firstDay = new Date(today);
+  firstDay.setDate(today.getDate() - (scopeDays - 1));
+
+  const byDaySeed: Array<{ date: Date; key: string; submittedCount: number }> = [];
+  for (let i = 0; i < scopeDays; i += 1) {
+    const day = new Date(firstDay);
+    day.setDate(firstDay.getDate() + i);
+    byDaySeed.push({
+      date: day,
+      key: formatDateKey(day),
+      submittedCount: 0
+    });
+  }
+
+  const dayMap = new Map(byDaySeed.map((day) => [day.key, day]));
+
+  for (const item of items) {
+    if (!item.submittedAt) {
+      continue;
+    }
+
+    const submittedDate = startOfDay(new Date(item.submittedAt));
+    if (Number.isNaN(submittedDate.getTime()) || submittedDate < firstDay || submittedDate > today) {
+      continue;
+    }
+
+    const key = formatDateKey(submittedDate);
+    const bucket = dayMap.get(key);
+    if (bucket) {
+      bucket.submittedCount += 1;
+    }
+  }
+
+  const byDay = byDaySeed.map((day) => ({
+    date: day.key,
+    submittedCount: day.submittedCount
+  }));
+
+  let currentStreak = 0;
+  for (let i = byDay.length - 1; i >= 0; i -= 1) {
+    if (byDay[i].submittedCount > 0) {
+      currentStreak += 1;
+    } else {
+      break;
+    }
+  }
+
+  let bestStreak = 0;
+  let running = 0;
+  for (const day of byDay) {
+    if (day.submittedCount > 0) {
+      running += 1;
+      bestStreak = Math.max(bestStreak, running);
+    } else {
+      running = 0;
+    }
+  }
+
+  const totalSubmitted = byDay.reduce((sum, day) => sum + day.submittedCount, 0);
+
+  return {
+    scopeDays,
+    currentStreak,
+    bestStreak,
+    totalSubmitted,
+    byDay
   };
 }
 
@@ -215,7 +297,8 @@ export async function buildDashboard(sessionId: string): Promise<DashboardPayloa
     courses: courseSummaries,
     items: allItems,
     assignments: allItems,
-    summary
+    summary,
+    weeklyStreak: buildWeeklyStreak(allItems)
   };
 }
 

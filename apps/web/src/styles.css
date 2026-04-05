@@ -212,6 +212,68 @@ button:disabled {
   transition: width 400ms ease;
 }
 
+.streak-panel {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 0.9rem;
+  padding: 0.8rem;
+  margin: 0.8rem 0;
+}
+
+.streak-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
+
+.streak-head .kpi-value {
+  font-size: 1.2rem;
+}
+
+.streak-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.streak-metrics span {
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  background: #edf5f2;
+  color: #264848;
+}
+
+.streak-week-grid {
+  margin-top: 0.7rem;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.streak-day-cell {
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  padding: 0.45rem 0.35rem;
+  text-align: center;
+  background: #f8fbfa;
+}
+
+.streak-day-cell span {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+.streak-day-cell strong {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 1rem;
+}
+
 .assignment-list {
   display: grid;
   gap: 0.7rem;
@@ -443,6 +505,14 @@ button:disabled {
 
   .course-grid {
     grid-template-columns: 1fr;
+  }
+
+  .streak-head {
+    flex-direction: column;
+  }
+
+  .streak-week-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .tabs {
