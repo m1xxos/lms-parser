@@ -2,12 +2,17 @@
 
 :root {
   --bg: #f4f4f0;
+  --bg-grad-start: #f0ece4;
+  --bg-grad-mid: #f7f8f4;
+  --bg-grad-end: #ecf4f2;
   --panel: rgba(255, 255, 255, 0.82);
   --text: #132024;
   --muted: #506067;
   --line: rgba(19, 32, 36, 0.12);
   --accent: #0c7c62;
   --accent-soft: #dff3ec;
+  --ambient-left: #e6b873;
+  --ambient-right: #64a5a2;
   --warning: #b85d0c;
   --danger: #b92f2f;
   --success: #1f7a1f;
@@ -21,7 +26,7 @@ body {
   margin: 0;
   font-family: "Sora", sans-serif;
   color: var(--text);
-  background: linear-gradient(170deg, #f0ece4 0%, #f7f8f4 52%, #ecf4f2 100%);
+  background: var(--bg);
   min-height: 100vh;
 }
 
@@ -29,6 +34,24 @@ body {
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
+  background: linear-gradient(170deg, var(--bg-grad-start) 0%, var(--bg-grad-mid) 52%, var(--bg-grad-end) 100%);
+}
+
+.pattern-layer,
+.emoji-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.pattern-layer {
+  opacity: 0.58;
+}
+
+.emoji-layer {
+  opacity: 0.2;
+  mix-blend-mode: soft-light;
 }
 
 .ambient {
@@ -44,14 +67,14 @@ body {
 .ambient-left {
   top: -12rem;
   left: -8rem;
-  background: #e6b873;
+  background: var(--ambient-left);
   animation: drift 10s ease-in-out infinite;
 }
 
 .ambient-right {
   top: 8rem;
   right: -10rem;
-  background: #64a5a2;
+  background: var(--ambient-right);
   animation: drift 12s ease-in-out infinite reverse;
 }
 
@@ -74,6 +97,23 @@ body {
   margin: 0.8rem 0 1.7rem;
   color: var(--muted);
   max-width: 70ch;
+}
+
+.theme-panel {
+  margin-top: -0.5rem;
+}
+
+.theme-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.9fr auto;
+  gap: 0.7rem;
+  align-items: end;
+}
+
+.theme-hint {
+  margin: 0.65rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .panel {
@@ -435,6 +475,90 @@ button:disabled {
   margin: 0.6rem 0;
 }
 
+.achievement-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.achievement-summary-card {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 0.9rem;
+  padding: 0.8rem;
+}
+
+.achievement-next {
+  margin: 0.85rem 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px dashed #b8d3dc;
+  border-radius: 0.75rem;
+  background: #f5fbff;
+  color: #22414f;
+}
+
+.achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.achievement-card {
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: #fff;
+  padding: 0.85rem;
+}
+
+.achievement-card-unlocked {
+  border-color: #a2d7b0;
+  background: linear-gradient(180deg, #ffffff 0%, #f2fbf4 100%);
+}
+
+.achievement-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.achievement-head h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.achievement-description {
+  margin: 0.5rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  min-height: 2.2rem;
+}
+
+.achievement-progress-track {
+  height: 0.62rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e8efed;
+}
+
+.achievement-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f916a, #7ecb8f);
+}
+
+.achievement-meta {
+  margin: 0.45rem 0 0;
+  font-size: 0.84rem;
+  color: #24504a;
+}
+
+.achievement-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .export-grid {
   display: grid;
   gap: 0.7rem;
@@ -499,11 +623,23 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .theme-row {
+    grid-template-columns: 1fr;
+  }
+
   .stats-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .course-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .achievement-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .achievements-grid {
     grid-template-columns: 1fr;
   }
 

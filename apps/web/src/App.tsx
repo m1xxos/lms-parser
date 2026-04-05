@@ -1,8 +1,10 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 
-type TabKey = "dashboard" | "courses" | "export";
+type TabKey = "dashboard" | "courses" | "export" | "achievements";
 type TaskType = "assignment" | "quiz";
 type AssignmentStatus = "not_submitted" | "submitted_ungraded" | "submitted_graded" | "draft" | "overdue";
+type ThemePresetKey = "calm" | "sunrise" | "ocean" | "graphite";
+type PatternType = "dots" | "grid" | "diagonal" | "waves";
 
 interface ConnectResponse {
   sessionId: string;
@@ -54,6 +56,34 @@ interface WeeklyStreak {
   byDay: WeeklyProgressDay[];
 }
 
+interface AchievementViewModel {
+  id: string;
+  title: string;
+  description: string;
+  value: number;
+  target: number;
+  unit: string;
+  progressPercent: number;
+  unlocked: boolean;
+  hint: string;
+}
+
+interface ThemePreset {
+  label: string;
+  bgStart: string;
+  bgMid: string;
+  bgEnd: string;
+  panel: string;
+  text: string;
+  muted: string;
+  line: string;
+  accent: string;
+  accentSoft: string;
+  ambientLeft: string;
+  ambientRight: string;
+  patternInk: string;
+}
+
 interface DashboardResponse {
   courses: CourseSummary[];
   items?: LearningItem[];
@@ -95,6 +125,126 @@ const TASK_TYPE_LABELS: Record<TaskType, string> = {
   quiz: "Тест"
 };
 
+const THEME_STORAGE_KEY = "moodle-tracker-theme-v1";
+
+const THEME_PRESETS: Record<ThemePresetKey, ThemePreset> = {
+  calm: {
+    label: "Calm Sand",
+    bgStart: "#f0ece4",
+    bgMid: "#f7f8f4",
+    bgEnd: "#ecf4f2",
+    panel: "rgba(255, 255, 255, 0.82)",
+    text: "#132024",
+    muted: "#506067",
+    line: "rgba(19, 32, 36, 0.12)",
+    accent: "#0c7c62",
+    accentSoft: "#dff3ec",
+    ambientLeft: "#e6b873",
+    ambientRight: "#64a5a2",
+    patternInk: "rgba(16, 43, 46, 0.16)"
+  },
+  sunrise: {
+    label: "Sunrise Peach",
+    bgStart: "#fff0e4",
+    bgMid: "#fffaf3",
+    bgEnd: "#f3efe8",
+    panel: "rgba(255, 255, 255, 0.84)",
+    text: "#2b1e19",
+    muted: "#726056",
+    line: "rgba(43, 30, 25, 0.14)",
+    accent: "#c0592a",
+    accentSoft: "#ffe5d8",
+    ambientLeft: "#f2a766",
+    ambientRight: "#f6ce86",
+    patternInk: "rgba(82, 41, 20, 0.16)"
+  },
+  ocean: {
+    label: "Ocean Mint",
+    bgStart: "#e8f5f4",
+    bgMid: "#f3fbfd",
+    bgEnd: "#e4f0f6",
+    panel: "rgba(255, 255, 255, 0.86)",
+    text: "#112b34",
+    muted: "#4f6972",
+    line: "rgba(17, 43, 52, 0.14)",
+    accent: "#176f9b",
+    accentSoft: "#dff0fb",
+    ambientLeft: "#70b9c2",
+    ambientRight: "#79d5b6",
+    patternInk: "rgba(16, 74, 90, 0.15)"
+  },
+  graphite: {
+    label: "Graphite Paper",
+    bgStart: "#eceff3",
+    bgMid: "#f8fafc",
+    bgEnd: "#e9edf2",
+    panel: "rgba(255, 255, 255, 0.84)",
+    text: "#1e2430",
+    muted: "#5a6170",
+    line: "rgba(30, 36, 48, 0.14)",
+    accent: "#3d5a93",
+    accentSoft: "#e3ebfb",
+    ambientLeft: "#9ea6c8",
+    ambientRight: "#b7bac7",
+    patternInk: "rgba(26, 34, 53, 0.14)"
+  }
+};
+
+const PATTERN_LABELS: Record<PatternType, string> = {
+  dots: "Dots",
+  grid: "Grid",
+  diagonal: "Diagonal",
+  waves: "Waves"
+};
+
+const DONE_STATUSES = new Set<AssignmentStatus>(["submitted_ungraded", "submitted_graded"]);
+
+function isThemePresetKey(value: string): value is ThemePresetKey {
+  return value in THEME_PRESETS;
+}
+
+function isPatternType(value: string): value is PatternType {
+  return value in PATTERN_LABELS;
+}
+
+function pickEmoji(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.slice(0, 2) || "✨";
+}
+
+function createPatternBackground(pattern: PatternType, color: string): { image: string; size: string } {
+  if (pattern === "grid") {
+    return {
+      image: `linear-gradient(${color} 1px, transparent 1px), linear-gradient(90deg, ${color} 1px, transparent 1px)`,
+      size: "30px 30px"
+    };
+  }
+
+  if (pattern === "diagonal") {
+    return {
+      image: `repeating-linear-gradient(45deg, ${color} 0 2px, transparent 2px 18px)`,
+      size: "28px 28px"
+    };
+  }
+
+  if (pattern === "waves") {
+    return {
+      image: `radial-gradient(circle at 0% 50%, transparent 24px, ${color} 25px, transparent 26px), radial-gradient(circle at 100% 50%, transparent 24px, ${color} 25px, transparent 26px)`,
+      size: "58px 34px"
+    };
+  }
+
+  return {
+    image: `radial-gradient(circle, ${color} 1.4px, transparent 1.4px)`,
+    size: "24px 24px"
+  };
+}
+
+function createEmojiPatternDataUrl(emoji: string): string {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'><text x='50%' y='52%' dominant-baseline='middle' text-anchor='middle' font-size='24'>${emoji}</text></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
 function formatDate(value: string | null): string {
   if (!value) {
     return "Без дедлайна";
@@ -126,6 +276,25 @@ function statusClass(status: AssignmentStatus): string {
 
 function taskTypeClass(itemType: TaskType): string {
   return itemType === "quiz" ? "chip chip-info" : "chip chip-muted";
+}
+
+function isDoneStatus(status: AssignmentStatus): boolean {
+  return DONE_STATUSES.has(status);
+}
+
+function toPercent(done: number, total: number): number {
+  if (total === 0) {
+    return 0;
+  }
+  return Math.round((done / total) * 100);
+}
+
+function formatMetric(value: number, unit: string): string {
+  const rounded = Math.round(value);
+  if (unit === "%") {
+    return `${rounded}%`;
+  }
+  return `${rounded} ${unit}`;
 }
 
 function dayKey(date: Date): string {
@@ -211,6 +380,10 @@ function fallbackWeeklyStreak(items: LearningItem[], scopeDays = 7): WeeklyStrea
 }
 
 export default function App(): JSX.Element {
+  const [themePreset, setThemePreset] = useState<ThemePresetKey>("calm");
+  const [backgroundPattern, setBackgroundPattern] = useState<PatternType>("dots");
+  const [backgroundEmoji, setBackgroundEmoji] = useState("✨");
+
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [connectForm, setConnectForm] = useState({ baseUrl: "https://sdo.sut.ru", username: "", password: "" });
   const [session, setSession] = useState<ConnectResponse | null>(null);
@@ -227,12 +400,240 @@ export default function App(): JSX.Element {
   const [sectionNumber, setSectionNumber] = useState<number>(0);
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(THEME_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as {
+        preset?: string;
+        pattern?: string;
+        emoji?: string;
+      };
+
+      if (parsed.preset && isThemePresetKey(parsed.preset)) {
+        setThemePreset(parsed.preset);
+      }
+      if (parsed.pattern && isPatternType(parsed.pattern)) {
+        setBackgroundPattern(parsed.pattern);
+      }
+      if (typeof parsed.emoji === "string") {
+        setBackgroundEmoji(pickEmoji(parsed.emoji));
+      }
+    } catch {
+      // ignore invalid storage payload
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      THEME_STORAGE_KEY,
+      JSON.stringify({
+        preset: themePreset,
+        pattern: backgroundPattern,
+        emoji: pickEmoji(backgroundEmoji)
+      })
+    );
+  }, [backgroundEmoji, backgroundPattern, themePreset]);
+
+  const activeTheme = THEME_PRESETS[themePreset];
+  const patternStyle = useMemo<CSSProperties>(() => {
+    const pattern = createPatternBackground(backgroundPattern, activeTheme.patternInk);
+    return {
+      backgroundImage: pattern.image,
+      backgroundSize: pattern.size
+    };
+  }, [activeTheme.patternInk, backgroundPattern]);
+
+  const emojiStyle = useMemo<CSSProperties>(
+    () => ({
+      backgroundImage: createEmojiPatternDataUrl(pickEmoji(backgroundEmoji)),
+      backgroundSize: "88px 88px"
+    }),
+    [backgroundEmoji]
+  );
+
+  const appThemeStyle = useMemo(
+    () =>
+      ({
+        "--bg-grad-start": activeTheme.bgStart,
+        "--bg-grad-mid": activeTheme.bgMid,
+        "--bg-grad-end": activeTheme.bgEnd,
+        "--panel": activeTheme.panel,
+        "--text": activeTheme.text,
+        "--muted": activeTheme.muted,
+        "--line": activeTheme.line,
+        "--accent": activeTheme.accent,
+        "--accent-soft": activeTheme.accentSoft,
+        "--ambient-left": activeTheme.ambientLeft,
+        "--ambient-right": activeTheme.ambientRight
+      }) as CSSProperties,
+    [activeTheme]
+  );
+
   const progress = dashboard?.summary.progressPercent ?? 0;
   const dashboardItems = useMemo(() => dashboard?.items ?? dashboard?.assignments ?? [], [dashboard]);
   const weeklyStreak = useMemo(
     () => dashboard?.weeklyStreak ?? fallbackWeeklyStreak(dashboardItems),
     [dashboard?.weeklyStreak, dashboardItems]
   );
+  const doneCount = dashboard?.summary.done ?? dashboardItems.filter((item) => isDoneStatus(item.status)).length;
+  const overallCompletionPercent = toPercent(doneCount, dashboard?.summary.total ?? dashboardItems.length);
+
+  const assignmentCompletion = useMemo(() => {
+    const assignmentItems = dashboardItems.filter((item) => item.itemType === "assignment");
+    const doneAssignments = assignmentItems.filter((item) => isDoneStatus(item.status)).length;
+    return {
+      total: assignmentItems.length,
+      done: doneAssignments,
+      percent: toPercent(doneAssignments, assignmentItems.length)
+    };
+  }, [dashboardItems]);
+
+  const assignmentProgressForAchievement =
+    assignmentCompletion.total > 0 ? assignmentCompletion.percent : overallCompletionPercent;
+  const assignmentAchievementDescription =
+    assignmentCompletion.total > 0
+      ? "Закрой 30% именно заданий."
+      : "Закрой 30% задач (в текущих курсах считаем общий прогресс).";
+
+  const bestCourseCompletionPercent = useMemo(() => {
+    const statsByCourse = new Map<number, { total: number; done: number }>();
+
+    for (const item of dashboardItems) {
+      const stats = statsByCourse.get(item.courseId) ?? { total: 0, done: 0 };
+      stats.total += 1;
+      if (isDoneStatus(item.status)) {
+        stats.done += 1;
+      }
+      statsByCourse.set(item.courseId, stats);
+    }
+
+    let best = 0;
+    for (const stats of statsByCourse.values()) {
+      best = Math.max(best, toPercent(stats.done, stats.total));
+    }
+
+    return best;
+  }, [dashboardItems]);
+
+  const activeWeekDays = weeklyStreak.byDay.filter((day) => day.submittedCount > 0).length;
+  const gradedCount = dashboardItems.filter((item) => item.status === "submitted_graded").length;
+
+  const achievements = useMemo<AchievementViewModel[]>(() => {
+    const raw = [
+      {
+        id: "first-task",
+        title: "Первый шаг",
+        description: "Сдай хотя бы 1 задачу или тест.",
+        value: doneCount,
+        target: 1,
+        unit: "шт."
+      },
+      {
+        id: "streak-2",
+        title: "Мини-стрик",
+        description: "Держи стрик 2 дня подряд.",
+        value: weeklyStreak.currentStreak,
+        target: 2,
+        unit: "дн."
+      },
+      {
+        id: "streak-4",
+        title: "Ритм недели",
+        description: "Сделай стрик 4 дня подряд.",
+        value: weeklyStreak.currentStreak,
+        target: 4,
+        unit: "дн."
+      },
+      {
+        id: "week-submits-5",
+        title: "Пять закрытий",
+        description: "Сдай 5 задач за последние 7 дней.",
+        value: weeklyStreak.totalSubmitted,
+        target: 5,
+        unit: "шт."
+      },
+      {
+        id: "week-active-3",
+        title: "Три активных дня",
+        description: "Сдавай минимум 3 дня в неделю.",
+        value: activeWeekDays,
+        target: 3,
+        unit: "дн."
+      },
+      {
+        id: "overall-20",
+        title: "Разогрев",
+        description: "Достигни 20% общего прогресса.",
+        value: overallCompletionPercent,
+        target: 20,
+        unit: "%"
+      },
+      {
+        id: "assignment-30",
+        title: "Сильные задания",
+        description: assignmentAchievementDescription,
+        value: assignmentProgressForAchievement,
+        target: 30,
+        unit: "%"
+      },
+      {
+        id: "course-25",
+        title: "Курс в движении",
+        description: "Доведите любой курс до 25% выполнения.",
+        value: bestCourseCompletionPercent,
+        target: 25,
+        unit: "%"
+      },
+      {
+        id: "course-50",
+        title: "Половина курса",
+        description: "Доведите любой курс до 50% выполнения.",
+        value: bestCourseCompletionPercent,
+        target: 50,
+        unit: "%"
+      },
+      {
+        id: "graded-3",
+        title: "Первые оценки",
+        description: "Получи 3 проверенные сдачи.",
+        value: gradedCount,
+        target: 3,
+        unit: "шт."
+      }
+    ];
+
+    return raw
+      .map((item) => {
+        const progressPercent = Math.max(0, Math.min(100, Math.round((item.value / item.target) * 100)));
+        const unlocked = item.value >= item.target;
+        const remaining = Math.max(0, Math.ceil(item.target - item.value));
+
+        return {
+          ...item,
+          progressPercent,
+          unlocked,
+          hint: unlocked ? "Получено. Так держать." : `Осталось: ${formatMetric(remaining, item.unit)}`
+        };
+      })
+      .sort((a, b) => Number(b.unlocked) - Number(a.unlocked) || b.progressPercent - a.progressPercent);
+  }, [
+    activeWeekDays,
+    assignmentAchievementDescription,
+    assignmentProgressForAchievement,
+    bestCourseCompletionPercent,
+    doneCount,
+    gradedCount,
+    overallCompletionPercent,
+    weeklyStreak.currentStreak,
+    weeklyStreak.totalSubmitted
+  ]);
+
+  const unlockedAchievements = achievements.filter((item) => item.unlocked).length;
+  const nextAchievement = achievements.find((item) => !item.unlocked) ?? null;
 
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId) ?? null,
@@ -396,7 +797,9 @@ export default function App(): JSX.Element {
   }, [exportStatus?.id]);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={appThemeStyle}>
+      <div className="pattern-layer" style={patternStyle} />
+      <div className="emoji-layer" style={emojiStyle} />
       <div className="ambient ambient-left" />
       <div className="ambient ambient-right" />
 
@@ -405,6 +808,58 @@ export default function App(): JSX.Element {
           <h1>Moodle Task Tracker</h1>
           <p>Единый экран задач, прогресса, статусов проверки и экспорта материалов курса в PDF.</p>
         </header>
+
+        <section className="panel theme-panel">
+          <div className="theme-row">
+            <label>
+              Тема
+              <select value={themePreset} onChange={(event) => setThemePreset(event.target.value as ThemePresetKey)}>
+                {Object.entries(THEME_PRESETS).map(([key, preset]) => (
+                  <option key={key} value={key}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Pattern
+              <select
+                value={backgroundPattern}
+                onChange={(event) => setBackgroundPattern(event.target.value as PatternType)}
+              >
+                {Object.entries(PATTERN_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Emoji
+              <input
+                type="text"
+                value={backgroundEmoji}
+                onChange={(event) => setBackgroundEmoji(pickEmoji(event.target.value))}
+                maxLength={2}
+              />
+            </label>
+
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => {
+                setThemePreset("calm");
+                setBackgroundPattern("dots");
+                setBackgroundEmoji("✨");
+              }}
+            >
+              Сбросить тему
+            </button>
+          </div>
+          <p className="theme-hint">Выбери emoji и pattern для фона. Настройки сохраняются автоматически.</p>
+        </section>
 
         <section className="panel">
           <form className="connect-grid" onSubmit={handleConnect}>
@@ -468,6 +923,7 @@ export default function App(): JSX.Element {
             <nav className="tabs">
               <button className={tab === "dashboard" ? "tab active" : "tab"} onClick={() => setTab("dashboard")}>Дашборд</button>
               <button className={tab === "courses" ? "tab active" : "tab"} onClick={() => setTab("courses")}>Курсы</button>
+              <button className={tab === "achievements" ? "tab active" : "tab"} onClick={() => setTab("achievements")}>Ачивки</button>
               <button className={tab === "export" ? "tab active" : "tab"} onClick={() => setTab("export")}>Экспорт PDF</button>
             </nav>
 
@@ -656,6 +1112,58 @@ export default function App(): JSX.Element {
                     )}
                   </div>
                 )}
+              </section>
+            )}
+
+            {tab === "achievements" && (
+              <section className="panel">
+                <div className="achievement-summary-grid">
+                  <article className="achievement-summary-card">
+                    <p className="kpi-label">Открыто ачивок</p>
+                    <p className="kpi-value">{unlockedAchievements} / {achievements.length}</p>
+                  </article>
+                  <article className="achievement-summary-card">
+                    <p className="kpi-label">Стрик сейчас</p>
+                    <p className="kpi-value">{weeklyStreak.currentStreak} дн.</p>
+                  </article>
+                  <article className="achievement-summary-card">
+                    <p className="kpi-label">Сдано за неделю</p>
+                    <p className="kpi-value">{weeklyStreak.totalSubmitted}</p>
+                  </article>
+                </div>
+
+                {nextAchievement && (
+                  <p className="achievement-next">
+                    Ближайшая цель: <strong>{nextAchievement.title}</strong> • {nextAchievement.hint}
+                  </p>
+                )}
+
+                <div className="achievements-grid">
+                  {achievements.map((achievement) => (
+                    <article
+                      key={achievement.id}
+                      className={achievement.unlocked ? "achievement-card achievement-card-unlocked" : "achievement-card"}
+                    >
+                      <div className="achievement-head">
+                        <h3>{achievement.title}</h3>
+                        <span className={achievement.unlocked ? "chip chip-success" : "chip chip-muted"}>
+                          {achievement.unlocked ? "Получена" : "В процессе"}
+                        </span>
+                      </div>
+
+                      <p className="achievement-description">{achievement.description}</p>
+
+                      <div className="achievement-progress-track">
+                        <div className="achievement-progress-fill" style={{ width: `${achievement.progressPercent}%` }} />
+                      </div>
+
+                      <p className="achievement-meta">
+                        {formatMetric(achievement.value, achievement.unit)} / {formatMetric(achievement.target, achievement.unit)}
+                      </p>
+                      <p className="achievement-hint">{achievement.hint}</p>
+                    </article>
+                  ))}
+                </div>
               </section>
             )}
 
