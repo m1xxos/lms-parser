@@ -15,6 +15,7 @@ fs.mkdirSync(exportDir, { recursive: true });
 function pickPdfFontPath(): string | null {
   const candidates = [
     process.env.PDF_FONT_PATH,
+    "/usr/share/fonts/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/TTF/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
   ].filter((item): item is string => Boolean(item));
@@ -29,6 +30,12 @@ function pickPdfFontPath(): string | null {
 }
 
 const pdfFontPath = pickPdfFontPath();
+
+if (pdfFontPath) {
+  console.log(`PDF font: ${pdfFontPath}`);
+} else {
+  console.warn("PDF font not found. Falling back to built-in PDFKit font.");
+}
 
 interface ExportResource {
   courseId: number;

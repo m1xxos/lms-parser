@@ -30,6 +30,37 @@ function htmlToText(raw: string): string {
   return text;
 }
 
+function htmlDocumentToText(rawHtml: string): string {
+  const $ = cheerio.load(rawHtml);
+  $("script, style, noscript").remove();
+
+  const candidateSelectors = [
+    ".mod_page-content",
+    ".generalbox",
+    "#region-main",
+    "main",
+    "body"
+  ];
+
+  for (const selector of candidateSelectors) {
+    const text = $(selector).first().text().replace(/\s+/g, " ").trim();
+    if (text && text.length > 40) {
+      return text;
+    }
+  }
+
+  return $.text().replace(/\s+/g, " ").trim();
+}
+
+function isLoginLikeText(value: string): boolean {
+  const lowered = value.toLowerCase();
+  return (
+    (lowered.includes("зайти на") && lowered.includes("логин")) ||
+    lowered.includes("login or email") ||
+    lowered.includes("forgotten your username or password")
+  );
+}
+
 function clipText(value: string, maxLength: number): string {
   if (value.length <= maxLength) {
     return value;
@@ -39,6 +70,7 @@ function clipText(value: string, maxLength: number): string {
 
 async function extractModuleText(module: {
   modname: string;
+  url?: string;
   description?: string;
   contents?: Array<{
     content?: string;
@@ -106,6 +138,16 @@ async function extractModuleText(module: {
     .filter(Boolean)
     .join("\n\n");
 
+  if (!merged && module.url) {
+    const pageHtml = await client.downloadHtmlFromUrl(module.url).catch(() => null);
+    if (pageHtml) {
+      const pageText = htmlDocumentToText(pageHtml);
+      if (pageText && !isLoginLikeText(pageText)) {
+        return clipText(pageText, 24000);
+      }
+    }
+  }
+
   if (!merged) {
     return "Текстовое содержимое недоступно для этого материала (возможно бинарный формат или ограниченный доступ).";
   }
@@ -155,7 +197,21 @@ export async function createExportJob(payload: ExportJobPayload): Promise<string
 
   for (const courseId of selectedCourseIds) {
     const sections = await client.getCourseContents(courseId);
+    const pages = await client.getPagesByCourses([courseId]).catch(() => []);
     const courseName = courses.find((course) => course.id === courseId)?.fullname ?? `Course ${courseId}`;
+    const pageTextByModuleId = new Map<number, string>();
+
+    for (const page of pages) {
+      const pageText = [page.intro, page.content]
+        .map((item) => (item ? htmlToText(item) : ""))
+        .filter(Boolean)
+        .join("\n\n")
+        .trim();
+
+      if (pageText) {
+        pageTextByModuleId.set(page.coursemodule, clipText(pageText, 24000));
+      }
+    }
 
     for (const section of sections) {
       if (payload.scope === "section" && payload.sectionNumber !== section.section) {
@@ -180,7 +236,10 @@ export async function createExportJob(payload: ExportJobPayload): Promise<string
           continue;
         }
 
-        const textContent = await extractModuleText(module, client);
+        const textContent =
+          module.modname === "page" && pageTextByModuleId.has(module.id)
+            ? pageTextByModuleId.get(module.id) ?? ""
+            : await extractModuleText(module, client);
 
         resources.push({
           courseId,

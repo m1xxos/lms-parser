@@ -96,6 +96,14 @@ export interface MoodleSection {
   modules: MoodleSectionModule[];
 }
 
+export interface MoodlePage {
+  id: number;
+  coursemodule: number;
+  name: string;
+  intro?: string;
+  content?: string;
+}
+
 export class MoodleWsClient {
   constructor(
     private readonly baseUrl: string,
@@ -243,6 +251,18 @@ export class MoodleWsClient {
     return data.quizzes ?? [];
   }
 
+  async getPagesByCourses(courseIds: number[]): Promise<MoodlePage[]> {
+    if (courseIds.length === 0) {
+      return [];
+    }
+
+    const data = await this.call<{ pages: MoodlePage[] }>("mod_page_get_pages_by_courses", {
+      courseids: courseIds
+    });
+
+    return data.pages ?? [];
+  }
+
   async getQuizAttempts(quizId: number, userId: number): Promise<MoodleQuizAttempt[]> {
     const data = await this.call<{ attempts: MoodleQuizAttempt[] }>("mod_quiz_get_user_attempts", {
       quizid: quizId,
@@ -308,5 +328,26 @@ export class MoodleWsClient {
     });
 
     return Buffer.from(response.data);
+  }
+
+  async downloadHtmlFromUrl(url: string): Promise<string | null> {
+    const response = await axios.get<string>(this.buildAuthenticatedFileUrl(url), {
+      responseType: "text",
+      timeout: 30000,
+      headers: {
+        Accept: "text/html,application/xhtml+xml"
+      }
+    });
+
+    if (typeof response.data !== "string") {
+      return null;
+    }
+
+    const html = response.data.trim();
+    if (!html) {
+      return null;
+    }
+
+    return html;
   }
 }
