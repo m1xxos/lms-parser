@@ -209,7 +209,16 @@ function isPatternType(value: string): value is PatternType {
 
 function pickEmoji(value: string): string {
   const trimmed = value.trim();
-  return trimmed.slice(0, 2) || "✨";
+  return trimmed || "✨";
+}
+
+function normalizeTiltAngle(value: number): number {
+  if (Number.isNaN(value)) {
+    return 0;
+  }
+
+  const normalized = ((Math.round(value) % 360) + 360) % 360;
+  return normalized;
 }
 
 function createPatternBackground(pattern: PatternType, color: string): { image: string; size: string } {
@@ -240,9 +249,31 @@ function createPatternBackground(pattern: PatternType, color: string): { image: 
   };
 }
 
-function createEmojiPatternDataUrl(emoji: string): string {
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'><text x='50%' y='52%' dominant-baseline='middle' text-anchor='middle' font-size='24'>${emoji}</text></svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+function createEmojiPatternDataUrl(emoji: string, tiltDegrees: number): string {
+  if (typeof document === "undefined") {
+    return "none";
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 96;
+  canvas.height = 96;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return "none";
+  }
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.font = '56px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.save();
+  context.translate(canvas.width / 2, canvas.height / 2);
+  context.rotate((normalizeTiltAngle(tiltDegrees) * Math.PI) / 180);
+  context.fillText(emoji, 0, 0);
+  context.restore();
+
+  return `url("${canvas.toDataURL("image/png")}")`;
 }
 
 function formatDate(value: string | null): string {
@@ -383,6 +414,7 @@ export default function App(): JSX.Element {
   const [themePreset, setThemePreset] = useState<ThemePresetKey>("calm");
   const [backgroundPattern, setBackgroundPattern] = useState<PatternType>("dots");
   const [backgroundEmoji, setBackgroundEmoji] = useState("✨");
+  const [emojiTiltAngle, setEmojiTiltAngle] = useState(0);
 
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [connectForm, setConnectForm] = useState({ baseUrl: "https://sdo.sut.ru", username: "", password: "" });
@@ -411,6 +443,7 @@ export default function App(): JSX.Element {
         preset?: string;
         pattern?: string;
         emoji?: string;
+        emojiTilt?: number;
       };
 
       if (parsed.preset && isThemePresetKey(parsed.preset)) {
@@ -421,6 +454,9 @@ export default function App(): JSX.Element {
       }
       if (typeof parsed.emoji === "string") {
         setBackgroundEmoji(pickEmoji(parsed.emoji));
+      }
+      if (typeof parsed.emojiTilt === "number") {
+        setEmojiTiltAngle(normalizeTiltAngle(parsed.emojiTilt));
       }
     } catch {
       // ignore invalid storage payload
@@ -433,10 +469,11 @@ export default function App(): JSX.Element {
       JSON.stringify({
         preset: themePreset,
         pattern: backgroundPattern,
-        emoji: pickEmoji(backgroundEmoji)
+        emoji: pickEmoji(backgroundEmoji),
+        emojiTilt: normalizeTiltAngle(emojiTiltAngle)
       })
     );
-  }, [backgroundEmoji, backgroundPattern, themePreset]);
+  }, [backgroundEmoji, backgroundPattern, emojiTiltAngle, themePreset]);
 
   const activeTheme = THEME_PRESETS[themePreset];
   const patternStyle = useMemo<CSSProperties>(() => {
@@ -449,10 +486,12 @@ export default function App(): JSX.Element {
 
   const emojiStyle = useMemo<CSSProperties>(
     () => ({
-      backgroundImage: createEmojiPatternDataUrl(pickEmoji(backgroundEmoji)),
-      backgroundSize: "88px 88px"
+      backgroundImage: createEmojiPatternDataUrl(pickEmoji(backgroundEmoji), emojiTiltAngle),
+      backgroundSize: "96px 96px",
+      backgroundRepeat: "repeat",
+      backgroundPosition: "0 0"
     }),
-    [backgroundEmoji]
+    [backgroundEmoji, emojiTiltAngle]
   );
 
   const appThemeStyle = useMemo(
@@ -842,7 +881,19 @@ export default function App(): JSX.Element {
                 type="text"
                 value={backgroundEmoji}
                 onChange={(event) => setBackgroundEmoji(pickEmoji(event.target.value))}
-                maxLength={2}
+                maxLength={4}
+              />
+            </label>
+
+            <label>
+              Угол emoji ({normalizeTiltAngle(emojiTiltAngle)}°)
+              <input
+                type="range"
+                min={0}
+                max={355}
+                step={5}
+                value={emojiTiltAngle}
+                onChange={(event) => setEmojiTiltAngle(normalizeTiltAngle(Number(event.target.value)))}
               />
             </label>
 
@@ -853,6 +904,7 @@ export default function App(): JSX.Element {
                 setThemePreset("calm");
                 setBackgroundPattern("dots");
                 setBackgroundEmoji("✨");
+                setEmojiTiltAngle(0);
               }}
             >
               Сбросить тему

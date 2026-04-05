@@ -50,8 +50,8 @@ body {
 }
 
 .emoji-layer {
-  opacity: 0.2;
-  mix-blend-mode: soft-light;
+  opacity: 0.34;
+  mix-blend-mode: normal;
 }
 
 .ambient {
@@ -105,7 +105,7 @@ body {
 
 .theme-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 0.9fr auto;
+  grid-template-columns: 1.15fr 0.95fr 0.85fr 1.15fr auto;
   gap: 0.7rem;
   align-items: end;
 }
