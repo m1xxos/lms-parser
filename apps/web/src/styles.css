@@ -475,6 +475,50 @@ button:disabled {
   margin: 0.6rem 0;
 }
 
+.xp-panel {
+  border: 1px solid var(--line);
+  border-radius: 0.95rem;
+  padding: 0.85rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f2f8ff 100%);
+  margin-bottom: 0.8rem;
+}
+
+.xp-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+
+.xp-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.xp-metrics span {
+  font-size: 0.76rem;
+  color: #22414f;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: #e5eefc;
+}
+
+.xp-track {
+  margin-top: 0.55rem;
+  height: 0.64rem;
+  border-radius: 999px;
+  background: #dbe6f9;
+  overflow: hidden;
+}
+
+.xp-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4a78d3, #7ab0ff);
+  transition: width 280ms ease;
+}
+
 .achievement-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -551,6 +595,13 @@ button:disabled {
   margin: 0.45rem 0 0;
   font-size: 0.84rem;
   color: #24504a;
+}
+
+.achievement-xp {
+  margin: 0.35rem 0 0;
+  font-size: 0.79rem;
+  color: #3659a8;
+  font-weight: 600;
 }
 
 .achievement-hint {
@@ -641,6 +692,10 @@ button:disabled {
 
   .achievements-grid {
     grid-template-columns: 1fr;
+  }
+
+  .xp-head {
+    flex-direction: column;
   }
 
   .streak-head {

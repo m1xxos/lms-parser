@@ -63,9 +63,18 @@ interface AchievementViewModel {
   value: number;
   target: number;
   unit: string;
+  xpReward: number;
   progressPercent: number;
   unlocked: boolean;
   hint: string;
+}
+
+interface LevelProgress {
+  totalXp: number;
+  level: number;
+  xpInLevel: number;
+  xpToNextLevel: number;
+  levelSpan: number;
 }
 
 interface ThemePreset {
@@ -328,6 +337,22 @@ function formatMetric(value: number, unit: string): string {
   return `${rounded} ${unit}`;
 }
 
+function computeLevelProgress(totalXp: number): LevelProgress {
+  const levelSpan = 250;
+  const safeXp = Math.max(0, Math.floor(totalXp));
+  const level = Math.floor(safeXp / levelSpan) + 1;
+  const xpInLevel = safeXp % levelSpan;
+  const xpToNextLevel = levelSpan - xpInLevel;
+
+  return {
+    totalXp: safeXp,
+    level,
+    xpInLevel,
+    xpToNextLevel,
+    levelSpan
+  };
+}
+
 function dayKey(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -560,6 +585,9 @@ export default function App(): JSX.Element {
 
   const activeWeekDays = weeklyStreak.byDay.filter((day) => day.submittedCount > 0).length;
   const gradedCount = dashboardItems.filter((item) => item.status === "submitted_graded").length;
+  const doneQuizCount = dashboardItems.filter((item) => item.itemType === "quiz" && isDoneStatus(item.status)).length;
+  const overdueCount = dashboardItems.filter((item) => item.status === "overdue").length;
+  const maxDailySubmissions = weeklyStreak.byDay.reduce((max, day) => Math.max(max, day.submittedCount), 0);
 
   const achievements = useMemo<AchievementViewModel[]>(() => {
     const raw = [
@@ -569,7 +597,8 @@ export default function App(): JSX.Element {
         description: "Сдай хотя бы 1 задачу или тест.",
         value: doneCount,
         target: 1,
-        unit: "шт."
+        unit: "шт.",
+        xpReward: 40
       },
       {
         id: "streak-2",
@@ -577,7 +606,8 @@ export default function App(): JSX.Element {
         description: "Держи стрик 2 дня подряд.",
         value: weeklyStreak.currentStreak,
         target: 2,
-        unit: "дн."
+        unit: "дн.",
+        xpReward: 55
       },
       {
         id: "streak-4",
@@ -585,7 +615,17 @@ export default function App(): JSX.Element {
         description: "Сделай стрик 4 дня подряд.",
         value: weeklyStreak.currentStreak,
         target: 4,
-        unit: "дн."
+        unit: "дн.",
+        xpReward: 90
+      },
+      {
+        id: "streak-7",
+        title: "Железная неделя",
+        description: "Собери стрик 7 дней подряд.",
+        value: weeklyStreak.currentStreak,
+        target: 7,
+        unit: "дн.",
+        xpReward: 160
       },
       {
         id: "week-submits-5",
@@ -593,7 +633,17 @@ export default function App(): JSX.Element {
         description: "Сдай 5 задач за последние 7 дней.",
         value: weeklyStreak.totalSubmitted,
         target: 5,
-        unit: "шт."
+        unit: "шт.",
+        xpReward: 70
+      },
+      {
+        id: "week-submits-10",
+        title: "Турбо неделя",
+        description: "Сдай 10 задач за последние 7 дней.",
+        value: weeklyStreak.totalSubmitted,
+        target: 10,
+        unit: "шт.",
+        xpReward: 125
       },
       {
         id: "week-active-3",
@@ -601,7 +651,17 @@ export default function App(): JSX.Element {
         description: "Сдавай минимум 3 дня в неделю.",
         value: activeWeekDays,
         target: 3,
-        unit: "дн."
+        unit: "дн.",
+        xpReward: 65
+      },
+      {
+        id: "week-active-5",
+        title: "Пять активных дней",
+        description: "Сдавай минимум 5 дней из 7.",
+        value: activeWeekDays,
+        target: 5,
+        unit: "дн.",
+        xpReward: 130
       },
       {
         id: "overall-20",
@@ -609,7 +669,26 @@ export default function App(): JSX.Element {
         description: "Достигни 20% общего прогресса.",
         value: overallCompletionPercent,
         target: 20,
-        unit: "%"
+        unit: "%",
+        xpReward: 60
+      },
+      {
+        id: "overall-40",
+        title: "Стабильный темп",
+        description: "Достигни 40% общего прогресса.",
+        value: overallCompletionPercent,
+        target: 40,
+        unit: "%",
+        xpReward: 110
+      },
+      {
+        id: "overall-60",
+        title: "Почти мастер",
+        description: "Достигни 60% общего прогресса.",
+        value: overallCompletionPercent,
+        target: 60,
+        unit: "%",
+        xpReward: 180
       },
       {
         id: "assignment-30",
@@ -617,7 +696,8 @@ export default function App(): JSX.Element {
         description: assignmentAchievementDescription,
         value: assignmentProgressForAchievement,
         target: 30,
-        unit: "%"
+        unit: "%",
+        xpReward: 95
       },
       {
         id: "course-25",
@@ -625,7 +705,8 @@ export default function App(): JSX.Element {
         description: "Доведите любой курс до 25% выполнения.",
         value: bestCourseCompletionPercent,
         target: 25,
-        unit: "%"
+        unit: "%",
+        xpReward: 75
       },
       {
         id: "course-50",
@@ -633,7 +714,17 @@ export default function App(): JSX.Element {
         description: "Доведите любой курс до 50% выполнения.",
         value: bestCourseCompletionPercent,
         target: 50,
-        unit: "%"
+        unit: "%",
+        xpReward: 130
+      },
+      {
+        id: "course-75",
+        title: "Курс на финише",
+        description: "Доведите любой курс до 75% выполнения.",
+        value: bestCourseCompletionPercent,
+        target: 75,
+        unit: "%",
+        xpReward: 200
       },
       {
         id: "graded-3",
@@ -641,7 +732,44 @@ export default function App(): JSX.Element {
         description: "Получи 3 проверенные сдачи.",
         value: gradedCount,
         target: 3,
-        unit: "шт."
+        unit: "шт.",
+        xpReward: 80
+      },
+      {
+        id: "graded-10",
+        title: "Доказанная сила",
+        description: "Получи 10 проверенных сдач.",
+        value: gradedCount,
+        target: 10,
+        unit: "шт.",
+        xpReward: 170
+      },
+      {
+        id: "quiz-5",
+        title: "Тестовый рывок",
+        description: "Закрой 5 тестов.",
+        value: doneQuizCount,
+        target: 5,
+        unit: "шт.",
+        xpReward: 115
+      },
+      {
+        id: "daily-burst-3",
+        title: "Сильный день",
+        description: "Сдай 3 задачи за один день.",
+        value: maxDailySubmissions,
+        target: 3,
+        unit: "шт.",
+        xpReward: 85
+      },
+      {
+        id: "zero-overdue",
+        title: "Чистый лист",
+        description: "Оставь 0 просроченных задач.",
+        value: overdueCount === 0 ? 1 : 0,
+        target: 1,
+        unit: "цель",
+        xpReward: 120
       }
     ];
 
@@ -665,7 +793,10 @@ export default function App(): JSX.Element {
     assignmentProgressForAchievement,
     bestCourseCompletionPercent,
     doneCount,
+    doneQuizCount,
     gradedCount,
+    maxDailySubmissions,
+    overdueCount,
     overallCompletionPercent,
     weeklyStreak.currentStreak,
     weeklyStreak.totalSubmitted
@@ -673,6 +804,27 @@ export default function App(): JSX.Element {
 
   const unlockedAchievements = achievements.filter((item) => item.unlocked).length;
   const nextAchievement = achievements.find((item) => !item.unlocked) ?? null;
+
+  const totalAchievementXp = useMemo(
+    () => achievements.filter((item) => item.unlocked).reduce((sum, item) => sum + item.xpReward, 0),
+    [achievements]
+  );
+
+  const dailyActivityXp = useMemo(
+    () =>
+      weeklyStreak.byDay.reduce((sum, day) => {
+        if (day.submittedCount === 0) {
+          return sum;
+        }
+
+        return sum + Math.min(day.submittedCount, 3) * 12;
+      }, 0),
+    [weeklyStreak.byDay]
+  );
+
+  const streakBonusXp = Math.min(weeklyStreak.currentStreak, 10) * 9;
+  const levelProgress = computeLevelProgress(totalAchievementXp + dailyActivityXp + streakBonusXp);
+  const levelPercent = Math.round((levelProgress.xpInLevel / levelProgress.levelSpan) * 100);
 
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId) ?? null,
@@ -1169,6 +1321,24 @@ export default function App(): JSX.Element {
 
             {tab === "achievements" && (
               <section className="panel">
+                <div className="xp-panel">
+                  <div className="xp-head">
+                    <div>
+                      <p className="kpi-label">Уровень</p>
+                      <p className="kpi-value">{levelProgress.level}</p>
+                    </div>
+                    <div className="xp-metrics">
+                      <span>XP всего: {levelProgress.totalXp}</span>
+                      <span>До следующего: {levelProgress.xpToNextLevel}</span>
+                      <span>От ачивок: {totalAchievementXp}</span>
+                      <span>Ежедневная активность: {dailyActivityXp + streakBonusXp}</span>
+                    </div>
+                  </div>
+                  <div className="xp-track">
+                    <div className="xp-fill" style={{ width: `${levelPercent}%` }} />
+                  </div>
+                </div>
+
                 <div className="achievement-summary-grid">
                   <article className="achievement-summary-card">
                     <p className="kpi-label">Открыто ачивок</p>
@@ -1212,6 +1382,7 @@ export default function App(): JSX.Element {
                       <p className="achievement-meta">
                         {formatMetric(achievement.value, achievement.unit)} / {formatMetric(achievement.target, achievement.unit)}
                       </p>
+                      <p className="achievement-xp">+{achievement.xpReward} XP</p>
                       <p className="achievement-hint">{achievement.hint}</p>
                     </article>
                   ))}
