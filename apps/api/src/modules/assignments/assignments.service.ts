@@ -22,12 +22,19 @@ const DONE_STATUSES = new Set(["submitted_ungraded", "submitted_graded"]);
 function buildSummary(items: LearningItem[]): DashboardSummary {
   const total = items.length;
   const done = items.filter((item) => DONE_STATUSES.has(item.status)).length;
+  const remainingItems = items.filter((item) => !DONE_STATUSES.has(item.status));
+  const remaining = remainingItems.length;
+  const remainingQuiz = remainingItems.filter((item) => item.itemType === "quiz").length;
+  const remainingNonQuiz = remainingItems.filter((item) => item.itemType !== "quiz").length;
   const submittedNotGraded = items.filter((item) => item.status === "submitted_ungraded").length;
   const overdue = items.filter((item) => item.status === "overdue").length;
 
   return {
     total,
     done,
+    remaining,
+    remainingQuiz,
+    remainingNonQuiz,
     submittedNotGraded,
     overdue,
     progressPercent: total === 0 ? 0 : Math.round((done / total) * 100)

@@ -34,6 +34,9 @@ export type AssignmentItem = LearningItem;
 export interface DashboardSummary {
   total: number;
   done: number;
+  remaining: number;
+  remainingQuiz: number;
+  remainingNonQuiz: number;
   submittedNotGraded: number;
   overdue: number;
   progressPercent: number;

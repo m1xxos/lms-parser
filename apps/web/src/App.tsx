@@ -38,6 +38,9 @@ interface LearningItem {
 interface DashboardSummary {
   total: number;
   done: number;
+  remaining: number;
+  remainingQuiz: number;
+  remainingNonQuiz: number;
   submittedNotGraded: number;
   overdue: number;
   progressPercent: number;
@@ -1143,6 +1146,18 @@ export default function App(): JSX.Element {
                     <p className="kpi-value">{dashboard.summary.total}</p>
                   </div>
                   <div>
+                    <p className="kpi-label">Осталось всего</p>
+                    <p className="kpi-value">{dashboard.summary.remaining}</p>
+                  </div>
+                  <div>
+                    <p className="kpi-label">Осталось тестов</p>
+                    <p className="kpi-value">{dashboard.summary.remainingQuiz}</p>
+                  </div>
+                  <div>
+                    <p className="kpi-label">Осталось не тестов</p>
+                    <p className="kpi-value">{dashboard.summary.remainingNonQuiz}</p>
+                  </div>
+                  <div>
                     <p className="kpi-label">Сдано, не проверено</p>
                     <p className="kpi-value">{dashboard.summary.submittedNotGraded}</p>
                   </div>
@@ -1274,6 +1289,9 @@ export default function App(): JSX.Element {
                         <div className="course-detail-summary">
                           <span>Задач: {courseSummary.total}</span>
                           <span>Сдано: {courseSummary.done}</span>
+                          <span>Осталось: {courseSummary.remaining}</span>
+                          <span>Тестов осталось: {courseSummary.remainingQuiz}</span>
+                          <span>Не тестов осталось: {courseSummary.remainingNonQuiz}</span>
                           <span>Не проверено: {courseSummary.submittedNotGraded}</span>
                           <span>Прогресс: {courseSummary.progressPercent}%</span>
                         </div>
