@@ -63,7 +63,7 @@ app.post("/api/connect", async (req, res) => {
     const input = connectSchema.parse(req.body);
     const connected = await connectToMoodle(input);
 
-    const session = sessionStore.create({
+    const session = await sessionStore.create({
       baseUrl: connected.baseUrl,
       userId: connected.userId,
       userFullName: connected.userFullName,
@@ -139,6 +139,33 @@ app.get("/api/export/:jobId", async (req, res) => {
   }
 });
 
-app.listen(config.apiPort, () => {
+const server = app.listen(config.apiPort, () => {
   console.log(`API listening on ${config.apiPort}`);
+});
+
+async function shutdown(signal: string): Promise<void> {
+  console.log(`Received ${signal}, shutting down API.`);
+  const forceExitTimer = setTimeout(() => {
+    console.error("Graceful shutdown timeout reached. Forcing exit.");
+    process.exit(1);
+  }, config.gracefulShutdownTimeoutMs);
+
+  await sessionStore.close();
+  server.close((error) => {
+    clearTimeout(forceExitTimer);
+    if (error) {
+      console.error("Failed to close HTTP server gracefully.", error);
+      process.exit(1);
+      return;
+    }
+    process.exit(0);
+  });
+}
+
+process.on("SIGINT", () => {
+  void shutdown("SIGINT");
+});
+
+process.on("SIGTERM", () => {
+  void shutdown("SIGTERM");
 });

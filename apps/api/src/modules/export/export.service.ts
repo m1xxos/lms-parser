@@ -165,7 +165,7 @@ function extractSectionSummaryText(summary?: string): string | null {
 }
 
 export async function createExportJob(payload: ExportJobPayload): Promise<string> {
-  const session = sessionStore.get(payload.sessionId);
+  const session = await sessionStore.get(payload.sessionId);
   if (!session) {
     throw new Error("Session not found.");
   }

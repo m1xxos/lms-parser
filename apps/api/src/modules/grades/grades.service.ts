@@ -9,7 +9,7 @@ function safeNumber(value: unknown): number {
 }
 
 export async function getCoursesWithPoints(sessionId: string): Promise<CourseSummary[]> {
-  const session = sessionStore.get(sessionId);
+  const session = await sessionStore.get(sessionId);
   if (!session) {
     throw new Error("Session not found.");
   }
