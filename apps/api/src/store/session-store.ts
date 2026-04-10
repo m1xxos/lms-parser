@@ -63,14 +63,9 @@ class SessionStore {
   async get(sessionId: string): Promise<MoodleSession | null> {
     try {
       await this.ensureRedisConnected();
-      const raw = await this.redis.call(
-        "GETEX",
-        this.buildKey(sessionId),
-        "EX",
-        String(config.sessionTtlSeconds)
-      );
+      const raw = await this.redis.getex(this.buildKey(sessionId), "EX", config.sessionTtlSeconds);
       if (raw) {
-        const session = JSON.parse(String(raw)) as MoodleSession;
+        const session = JSON.parse(raw) as MoodleSession;
         this.fallbackSessions.set(sessionId, session);
         return session;
       }
@@ -83,7 +78,9 @@ class SessionStore {
 
   async close(): Promise<void> {
     if (this.redis.status !== "wait" && this.redis.status !== "end") {
-      await this.redis.quit().catch(() => undefined);
+      await this.redis.quit().catch((error) => {
+        console.error("Error closing Redis connection.", error);
+      });
     }
   }
 }
