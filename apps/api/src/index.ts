@@ -145,8 +145,19 @@ const server = app.listen(config.apiPort, () => {
 
 async function shutdown(signal: string): Promise<void> {
   console.log(`Received ${signal}, shutting down API.`);
+  const forceExitTimer = setTimeout(() => {
+    console.error("Graceful shutdown timeout reached. Forcing exit.");
+    process.exit(1);
+  }, 10_000);
+
   await sessionStore.close();
-  server.close(() => {
+  server.close((error) => {
+    clearTimeout(forceExitTimer);
+    if (error) {
+      console.error("Failed to close HTTP server gracefully.", error);
+      process.exit(1);
+      return;
+    }
     process.exit(0);
   });
 }

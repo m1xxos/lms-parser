@@ -7,9 +7,16 @@ import { encryptString } from "../utils/crypto.js";
 class SessionStore {
   private readonly fallbackSessions = new Map<string, MoodleSession>();
   private readonly redis = new Redis(config.redisUrl, {
-    maxRetriesPerRequest: null
+    maxRetriesPerRequest: null,
+    lazyConnect: true
   });
   private readonly keyPrefix = "lms:session:";
+
+  constructor() {
+    this.redis.on("error", (error) => {
+      console.error("Redis session-store connection error.", error);
+    });
+  }
 
   private buildKey(sessionId: string): string {
     return `${this.keyPrefix}${sessionId}`;
@@ -63,7 +70,9 @@ class SessionStore {
   }
 
   async close(): Promise<void> {
-    await this.redis.quit().catch(() => undefined);
+    if (this.redis.status !== "wait" && this.redis.status !== "end") {
+      await this.redis.quit().catch(() => undefined);
+    }
   }
 }
 
