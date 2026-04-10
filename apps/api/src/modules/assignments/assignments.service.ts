@@ -247,7 +247,7 @@ async function buildQuizItems(params: {
 }
 
 export async function buildDashboard(sessionId: string): Promise<DashboardPayload> {
-  const session = sessionStore.get(sessionId);
+  const session = await sessionStore.get(sessionId);
   if (!session) {
     throw new Error("Session not found.");
   }

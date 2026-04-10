@@ -63,7 +63,7 @@ app.post("/api/connect", async (req, res) => {
     const input = connectSchema.parse(req.body);
     const connected = await connectToMoodle(input);
 
-    const session = sessionStore.create({
+    const session = await sessionStore.create({
       baseUrl: connected.baseUrl,
       userId: connected.userId,
       userFullName: connected.userFullName,
