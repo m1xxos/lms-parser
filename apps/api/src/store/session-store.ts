@@ -18,6 +18,12 @@ class SessionStore {
     });
   }
 
+  private async ensureRedisConnected(): Promise<void> {
+    if (this.redis.status === "wait") {
+      await this.redis.connect();
+    }
+  }
+
   private buildKey(sessionId: string): string {
     return `${this.keyPrefix}${sessionId}`;
   }
@@ -45,6 +51,7 @@ class SessionStore {
     this.fallbackSessions.set(id, session);
 
     try {
+      await this.ensureRedisConnected();
       await this.redis.set(this.buildKey(id), JSON.stringify(session), "EX", config.sessionTtlSeconds);
     } catch (error) {
       console.error(`Failed to persist session ${id} in Redis.`, error);
@@ -55,11 +62,16 @@ class SessionStore {
 
   async get(sessionId: string): Promise<MoodleSession | null> {
     try {
-      const raw = await this.redis.get(this.buildKey(sessionId));
+      await this.ensureRedisConnected();
+      const raw = await this.redis.call(
+        "GETEX",
+        this.buildKey(sessionId),
+        "EX",
+        String(config.sessionTtlSeconds)
+      );
       if (raw) {
-        const session = JSON.parse(raw) as MoodleSession;
+        const session = JSON.parse(String(raw)) as MoodleSession;
         this.fallbackSessions.set(sessionId, session);
-        await this.redis.expire(this.buildKey(sessionId), config.sessionTtlSeconds);
         return session;
       }
     } catch (error) {

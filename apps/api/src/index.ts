@@ -148,7 +148,7 @@ async function shutdown(signal: string): Promise<void> {
   const forceExitTimer = setTimeout(() => {
     console.error("Graceful shutdown timeout reached. Forcing exit.");
     process.exit(1);
-  }, 10_000);
+  }, config.gracefulShutdownTimeoutMs);
 
   await sessionStore.close();
   server.close((error) => {
