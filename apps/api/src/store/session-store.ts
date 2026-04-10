@@ -40,7 +40,7 @@ class SessionStore {
     try {
       await this.redis.set(this.buildKey(id), JSON.stringify(session), "EX", config.sessionTtlSeconds);
     } catch (error) {
-      console.error("Failed to persist session in Redis.", error);
+      console.error(`Failed to persist session ${id} in Redis.`, error);
     }
 
     return session;
@@ -56,10 +56,14 @@ class SessionStore {
         return session;
       }
     } catch (error) {
-      console.error("Failed to read session from Redis.", error);
+      console.error(`Failed to read session ${sessionId} from Redis.`, error);
     }
 
     return this.fallbackSessions.get(sessionId) ?? null;
+  }
+
+  async close(): Promise<void> {
+    await this.redis.quit().catch(() => undefined);
   }
 }
 

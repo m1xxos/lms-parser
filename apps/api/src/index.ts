@@ -139,6 +139,22 @@ app.get("/api/export/:jobId", async (req, res) => {
   }
 });
 
-app.listen(config.apiPort, () => {
+const server = app.listen(config.apiPort, () => {
   console.log(`API listening on ${config.apiPort}`);
+});
+
+async function shutdown(signal: string): Promise<void> {
+  console.log(`Received ${signal}, shutting down API.`);
+  await sessionStore.close();
+  server.close(() => {
+    process.exit(0);
+  });
+}
+
+process.on("SIGINT", () => {
+  void shutdown("SIGINT");
+});
+
+process.on("SIGTERM", () => {
+  void shutdown("SIGTERM");
 });
